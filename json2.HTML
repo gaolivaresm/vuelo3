@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Simulador de Equilibrio de Momentos con Globo Aerostático</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .resultado { background-color: #f0f0f0; padding: 15px; margin-top: 20px; }
+        .material-select { width: 200px; }
+        .acciones { width: 120px; }
+        .info-box { background: #e8f4ff; padding: 15px; margin: 20px 0; }
+        .rojo { color: red; }
+        .verde { color: green; }
+        .small-text { font-size: 14px; }
+        .grafico { margin: 20px 0; padding: 10px; background: #f9f9f9; border: 1px solid #ddd; }
+        .barra { position: relative; height: 20px; background: #ccc; margin: 10px 0; }
+        .objeto { position: absolute; top: 0; height: 20px; width: 10px; background: blue; }
+        .id-label { position: absolute; top: 25px; transform: translateX(-50%); font-size: 12px; color: blue; }
+        .flecha { position: absolute; top: -20px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 10px solid red; }
+        @media (max-width: 600px) {
+            .form-group, .resultado { text-align: center; }
+            table { font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Simulador de Equilibrio de Momentos con Globo Aerostático</h1>
+    <p>Empuje máximo del globo: 70.000 kN</p>
+    <p>¡Genera tu estrategia para equilibrar la barra! Puedes optar por la más rentable, la más sostenible, la más equilibrada o la más rápida. La barra debe elevarse horizontalmente.</p>
+
+    <!-- Tabla de referencia de materiales -->
+    <div class="info-box">
+        <h3>Propiedades de Materiales</h3>
+        <table id="tablaMateriales">
+            <thead>
+                <tr>
+                    <th>Material</th>
+                    <th>Densidad (kg/m³)</th>
+                    <th>Energía (GJ/kg)</th>
+                    <th>Rentabilidad (UF/m³)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Corcho</td><td>250</td><td>0.0008</td><td>0.5</td></tr>
+                <tr><td>Aluminio</td><td>2,700</td><td>0.015</td><td>3.2</td></tr>
+                <tr><td>Oro</td><td>19,300</td><td>0.210</td><td>950</td></tr>
+                <tr><td>Madera</td><td>600</td><td>0.0025</td><td>1.8</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Calculadora -->
+    <div id="calculadora">
+        <div class="form-group">
+            <label>Centro de suspensión (m):</label>
+            <input type="number" id="centroSuspension" min="0" max="20" step="0.1" value="10">
+        </div>
+
+        <div class="form-group">
+            <label>Forma:</label>
+            <select id="forma">
+                <option value="cubo">Cubo</option>
+                <option value="esfera">Esfera</option>
+                <option value="cilindro">Cilindro</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="dimensiones"></div>
+
+        <div class="form-group">
+            <label>Material:</label>
+            <select id="material" class="material-select">
+                <option value="corcho">Corcho</option>
+                <option value="aluminio">Aluminio</option>
+                <option value="oro">Oro</option>
+                <option value="madera">Madera</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Posición en la barra (m):</label>
+            <input type="number" id="posicion" min="0" max="20" step="1">
+        </div>
+
+        <button onclick="agregarElemento()">Agregar elemento</button>
+        <button onclick="descargarEstrategia()">Descargar Estrategia</button>
+    </div>
+
+    <!-- Tabla de elementos -->
+    <table id="elementos">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Forma</th>
+                <th>Dimensiones</th>
+                <th>Material</th>
+                <th>Volumen (m³)</th>
+                <th>Masa (kg)</th>
+                <th>Peso (kN)</th>
+                <th>Posición (m)</th>
+                <th>Momento (kN·m)</th>
+                <th class="acciones">Acciones</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <!-- Gráfico visual -->
+    <div class="grafico">
+        <h3>Posición de los Objetos en la Barra</h3>
+        <div class="barra" id="barraGrafico"></div>
+    </div>
+
+    <!-- Resultados -->
+    <div class="resultado">
+        <h3>Análisis de Vuelo:</h3>
+        <p id="elevacion"></p>
+        <p>Desequilibrio vertical: <span id="desequilibrioVertical">0</span> kN</p>
+        <p>Desequilibrio rotacional: <span id="desequilibrioRotacional">0</span> kN·m</p>
+        <p>Energía total embebida: <span id="energia">0</span> GJ</p>
+        <p>Rentabilidad total: <span id="rentabilidad">0</span> UF</p>
+        <p>Velocidad de ascenso: <span id="velocidadAscenso">0</span> m/s</p>
+    </div>
+
+    <!-- Formulario explicativo -->
+    <div class="info-box small-text">
+        <h3>Cálculos Realizados</h3>
+        <p><strong>Empuje máximo del globo:</strong> 70.000 kN</p>
+        <p><strong>Masa y Peso:</strong> La masa se calcula como el volumen multiplicado por la densidad del material. El peso se obtiene multiplicando la masa por la aceleración debido a la gravedad (9.8 m/s²) y se convierte a kilonewtons (kN).</p>
+        <p><strong>Energía Embedida:</strong> Se calcula como la masa multiplicada por la energía específica del material, expresada en gigajulios (GJ).</p>
+        <p><strong>Rentabilidad:</strong> Se calcula como el volumen multiplicado por la rentabilidad específica del material.</p>
+        <p><strong>Velocidad de Ascenso:</strong> Se calcula como proporcional al diferencial de empuje y el peso total.</p>
+        <p><strong>Momento:</strong> Se calcula como el peso multiplicado por la distancia al punto de suspensión. El momento total debe ser cero para que la barra esté equilibrada.</p>
+    </div>
+
+    <script>
+        const materiales = {
+            'corcho': {densidad: 250, energia: 0.0008, rentabilidad: 0.5},
+            'aluminio': {densidad: 2700, energia: 0.015, rentabilidad: 3.2},
+            'oro': {densidad: 19300, energia: 0.210, rentabilidad: 950},
+            'madera': {densidad: 600, energia: 0.0025, rentabilidad: 1.8}
+        };
+
+        const empujeMaximo = 70000; // kN
+        const g = 9.8; // m/s²
+        let elementos = [];
+        let idCounter = 1;
+
+        function actualizarDimensiones() {
+            const forma = document.getElementById('forma').value;
+            let html = '';
+            switch(forma) {
+                case 'cubo':
+                    html = 'Lado: <input type="number" id="lado" step="0.1"> m';
+                    break;
+                case 'esfera':
+                    html = 'Radio: <input type="number" id="radio" step="0.1"> m';
+                    break;
+                case 'cilindro':
+                    html = 'Radio: <input type="number" id="radio" step="0.1"> m<br>Altura: <input type="number" id="altura" step="0.1"> m';
+                    break;
+            }
+            document.getElementById('dimensiones').innerHTML = html;
+        }
+
+        function calcularVolumen() {
+            const forma = document.getElementById('forma').value;
+            let volumen = 0;
+            let dimensiones = '';
+
+            switch(forma) {
+                case 'cubo':
+                    const lado = parseFloat(document.getElementById('lado').value);
+                    volumen = Math.pow(lado, 3);
+                    dimensiones = `Lado: ${lado}m`;
+                    break;
+                case 'esfera':
+                    const radio = parseFloat(document.getElementById('radio').value);
+                    volumen = (4/3) * Math.PI * Math.pow(radio, 3);
+                    dimensiones = `Radio: ${radio}m`;
+                    break;
+                case 'cilindro':
+                    const r = parseFloat(document.getElementById('radio').value);
+                    const h = parseFloat(document.getElementById('altura').value);
+                    volumen = Math.PI * Math.pow(r, 2) * h;
+                    dimensiones = `R:${r}m H:${h}m`;
+                    break;
+            }
+            return {volumen: volumen.toFixed(2), dimensiones};
+        }
+
+        function agregarElemento() {
+            const posicion = parseFloat(document.getElementById('posicion').value);
+            if (elementos.some(elem => elem.posicion === posicion)) {
+                alert('Ya hay un objeto en esta posición. Por favor, elige otra posición.');
+                return;
+            }
+
+            const forma = document.getElementById('forma').value;
+            const material = document.getElementById('material').value;
+            const calculo = calcularVolumen();
+
+            const masa = (calculo.volumen * materiales[material].densidad).toFixed(2);
+            const peso = (masa * g / 1000).toFixed(2); // Convertido a kN
+
+            const elemento = {
+                id: idCounter++,
+                forma: forma,
+                material: material,
+                volumen: calculo.volumen,
+                dimensiones: calculo.dimensiones,
+                masa: masa,
+                peso: peso,
+                posicion: posicion
+            };
+
+            elementos.push(elemento);
+
+            actualizarTabla();
+            actualizarResultados();
+            actualizarGrafico();
+        }
+
+        function eliminarElemento(index) {
+            elementos.splice(index, 1);
+            actualizarIDs();
+            actualizarTabla();
+            actualizarResultados();
+            actualizarGrafico();
+        }
+
+        function actualizarIDs() {
+            elementos.forEach((elem, index) => {
+                elem.id = index + 1;
+            });
+            idCounter = elementos.length + 1;
+        }
+
+        function calcularMomentoTotal() {
+            const centroSuspension = parseFloat(document.getElementById('centroSuspension').value);
+            return elementos.reduce((sum, elem) => {
+                const distancia = elem.posicion - centroSuspension;
+                return sum + (parseFloat(elem.peso) * distancia);
+            }, 0).toFixed(2);
+        }
+
+        function calcularVelocidadAscenso(pesoTotal) {
+            const diferencialEmpuje = empujeMaximo - pesoTotal;
+            if(diferencialEmpuje <= 0) return 0;
+            return (diferencialEmpuje / pesoTotal).toFixed(2); // Velocidad en m/s
+        }
+
+        function actualizarTabla() {
+            const tbody = document.querySelector('#elementos tbody');
+            const centroSuspension = parseFloat(document.getElementById('centroSuspension').value);
+            tbody.innerHTML = elementos.map((elem, index) => {
+                const distancia = elem.posicion - centroSuspension;
+                const momento = (parseFloat(elem.peso) * distancia).toFixed(2);
+                return `
+                    <tr>
+                        <td>${elem.id}</td>
+                        <td>${elem.forma}</td>
+                        <td>${elem.dimensiones}</td>
+                        <td>${elem.material}</td>
+                        <td>${elem.volumen}</td>
+                        <td>${elem.masa.toLocaleString()}</td>
+                        <td>${elem.peso.toLocaleString()}</td>
+                        <td>${elem.posicion}</td>
+                        <td>${momento}</td>
+                        <td>
+                            <button onclick="eliminarElemento(${index})" class="rojo">Eliminar</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function actualizarGrafico() {
+            const barraGrafico = document.getElementById('barraGrafico');
+            const centroSuspension = parseFloat(document.getElementById('centroSuspension').value);
+
+            barraGrafico.innerHTML = elementos.map(elem => `
+                <div class="objeto" style="left: ${(elem.posicion / 20) * 100}%;"></div>
+                <div class="id-label" style="left: ${(elem.posicion / 20) * 100}%;">ID: ${elem.id}</div>
+            `).join('');
+
+            // Agregar flecha roja en la posición del centro de suspensión
+            barraGrafico.innerHTML += `<div class="flecha" style="left: ${(centroSuspension / 20) * 100}%;"></div>`;
+        }
+
+        function actualizarResultados() {
+            const masaTotal = elementos.reduce((sum, elem) => sum + parseFloat(elem.masa), 0);
+            const pesoTotal = elementos.reduce((sum, elem) => sum + parseFloat(elem.peso), 0);
+            const energiaTotal = elementos.reduce((sum, elem) =>
+                sum + (parseFloat(elem.masa) * materiales[elem.material].energia), 0);
+            const rentabilidadTotal = elementos.reduce((sum, elem) =>
+                sum + (parseFloat(elem.volumen) * materiales[elem.material].rentabilidad), 0);
+            const velocidadAscenso = calcularVelocidadAscenso(pesoTotal);
+            const momentoTotal = calcularMomentoTotal();
+
+            const desequilibrioVertical = (pesoTotal - empujeMaximo).toFixed(2);
+            const desequilibrioRotacional = momentoTotal;
+
+            document.getElementById('energia').textContent = energiaTotal.toLocaleString();
+            document.getElementById('rentabilidad').textContent = rentabilidadTotal.toLocaleString();
+            document.getElementById('velocidadAscenso').textContent = velocidadAscenso;
+            document.getElementById('desequilibrioVertical').textContent = desequilibrioVertical;
+            document.getElementById('desequilibrioRotacional').textContent = desequilibrioRotacional;
+
+            const elevacion = document.getElementById('elevacion');
+            if(pesoTotal <= empujeMaximo && Math.abs(momentoTotal) < 0.01) {
+                elevacion.innerHTML = `✅ Barra equilibrada (Peso: ${pesoTotal.toLocaleString()}kN ≤ ${empujeMaximo.toLocaleString()}kN, Momento: ${momentoTotal}kN·m ≈ 0)`;
+                elevacion.className = 'verde';
+            } else {
+                elevacion.innerHTML = `❌ Desequilibrio (${pesoTotal.toLocaleString()}kN > ${empujeMaximo.toLocaleString()}kN o Momento: ${momentoTotal}kN·m ≠ 0)`;
+                elevacion.className = 'rojo';
+            }
+        }
+
+        function descargarEstrategia() {
+            const nombreGrupo = prompt("Por favor, ingrese el nombre de su grupo:");
+            if (nombreGrupo) {
+                const estrategia = {
+                    nombre: nombreGrupo,
+                    centroSuspension: parseFloat(document.getElementById('centroSuspension').value),
+                    elementos: elementos,
+                    energia: parseFloat(document.getElementById('energia').textContent.replace(',', '')),
+                    rentabilidad: parseFloat(document.getElementById('rentabilidad').textContent.replace(',', '')),
+                    velocidadAscenso: parseFloat(document.getElementById('velocidadAscenso').textContent),
+                    desequilibrioVertical: parseFloat(document.getElementById('desequilibrioVertical').textContent),
+                    desequilibrioRotacional: parseFloat(document.getElementById('desequilibrioRotacional').textContent)
+                };
+
+                const jsonContent = JSON.stringify(estrategia, null, 2);
+                const blob = new Blob([jsonContent], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `estrategia_${nombreGrupo}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+        }
+
+        // Inicialización
+        document.getElementById('forma').addEventListener('change', actualizarDimensiones);
+        actualizarDimensiones();
+    </script>
+</body>
+</html>
